@@ -2,6 +2,7 @@
   "name": "audio-extracter",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://sajidbhatti786.github.io/audio-extracter",
   "dependencies": {
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
@@ -11,7 +12,6 @@
     "body-parser": "^1.20.2",
     "express": "^4.18.2",
     "file-saver": "^2.0.5",
-    "gh-pages": "^6.0.0",
     "http-proxy-middleware": "^2.0.6",
     "node-fetch": "^3.3.2",
     "react": "^18.2.0",
@@ -21,8 +21,11 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
+    "predeploy": "npm run build",
+   "deploy": "gh-pages -d build",
     "start": "react-scripts start",
     "build": "react-scripts build",
+    
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
@@ -43,5 +46,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "gh-pages": "^6.0.0"
   }
 }
