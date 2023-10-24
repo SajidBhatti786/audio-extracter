@@ -1,107 +1,97 @@
 import React, { useState } from "react";
+import axios from "axios";
 
 const App = () => {
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [transcription, setTranscription] = useState("");
+  // AssemblyAI API
+  const assembly = axios.create({
+    baseURL: "https://api.assemblyai.com/v2",
+    headers: {
+      authorization: "cd610432583949c2b0404f55a064ec75",
+      "content-type": "application/json",
+      "transfer-encoding": "chunked",
+    },
+  });
+
+  // State variables
+  const [transcript, setTranscript] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleFileChange = (event) => {
-    setSelectedFile(event.target.files[0]);
-  };
+  // Handle file selection
+  const handleFileChange = async (event) => {
+    const selectedFile = event.target.files[0];
 
-  const transcribeAndDownload = async () => {
-    setIsLoading(true);
+    if (!selectedFile) {
+      alert("Please select an audio file.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("audio", selectedFile);
 
     try {
-      // Step 3: Upload the local file to the AssemblyAI API to get the upload_url.
-      const uploadUrlResponse = await fetch(
-        "https://api.assemblyai.com/v2/upload-url",
-        {
-          method: "POST",
-          headers: {
-            Authorization: "6bdccc2045804a77b4ac2a5ba59a0e28", // Replace with your AssemblyAI API token
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const uploadResponse = await assembly.post("/upload", selectedFile);
 
-      if (uploadUrlResponse.status !== 200) {
-        throw new Error("Failed to obtain upload URL.");
-      }
+      if (uploadResponse.status === 200) {
+        const uploadURL = uploadResponse.data.upload_url;
 
-      const uploadUrlData = await uploadUrlResponse.json();
-      const uploadUrl = uploadUrlData.upload_url;
-
-      // Step 4: Create a JSON payload with the upload_url.
-      const payload = {
-        audio_url: uploadUrl,
-      };
-
-      // Step 5: Make a POST request to the AssemblyAI API to start transcription.
-      const transcriptionResponse = await fetch(
-        "https://api.assemblyai.com/v2/upload",
-        {
-          method: "POST",
-          headers: {
-            Authorization: "6bdccc2045804a77b4ac2a5ba59a0e28", // Replace with your AssemblyAI API token
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      if (transcriptionResponse.status !== 200) {
-        throw new Error("Transcription request failed.");
-      }
-
-      const transcriptionData = await transcriptionResponse.json();
-      const transcriptionId = transcriptionData.id;
-
-      // Step 6: Poll the API for the transcription status.
-      let status = "";
-      while (status !== "completed") {
-        const statusResponse = await fetch(
-          `https://api.assemblyai.com/v2/transcript/${transcriptionId}`,
-          {
-            headers: {
-              Authorization: "6bdccc2045804a77b4ac2a5ba59a0e28", // Replace with your AssemblyAI API token
-            },
-          }
-        );
-        const statusData = await statusResponse.json();
-        status = statusData.status;
-
-        if (status === "completed") {
-          // Retrieve the transcript from the API response.
-          setTranscription(statusData.transcript);
-        } else {
-          // Sleep for a few seconds before checking the status again.
-          await new Promise((resolve) => setTimeout(resolve, 3000));
-        }
+        submitTranscription(uploadURL);
+      } else {
+        alert("File upload to AssemblyAI failed.");
       }
     } catch (error) {
-      // Handle errors here.
-      console.error("Error:", error);
-    } finally {
-      setIsLoading(false);
+      console.error(error);
+      alert("An error occurred while uploading the file.");
     }
   };
 
+  const submitTranscription = (uploadURL) => {
+    setIsLoading(true);
+    assembly
+      .post("/transcript", { audio_url: uploadURL, language_detection: true })
+      .then((response) => {
+        const transcriptID = response.data.id;
+
+        checkTranscriptionStatus(transcriptID);
+      })
+      .catch((error) => {
+        console.error(error);
+        alert("Transcription request to AssemblyAI failed.");
+      });
+  };
+
+  const checkTranscriptionStatus = (transcriptID) => {
+    const interval = setInterval(async () => {
+      try {
+        const response = await assembly.get(`/transcript/${transcriptID}`);
+        const transcriptData = response.data;
+        console.log(response);
+
+        if (transcriptData.status === "completed") {
+          clearInterval(interval);
+          setIsLoading(false);
+          setTranscript(transcriptData.text);
+        }
+      } catch (error) {
+        console.error(error);
+        alert("An error occurred while checking transcription status.");
+      }
+    }, 1000);
+  };
+  const downloadTranscript = () => {
+    const element = document.createElement("a");
+    const file = new Blob([transcript], { type: "text/plain" });
+    element.href = URL.createObjectURL(file);
+    element.download = "transcript.txt";
+    element.click();
+  };
   return (
     <div>
-      <h2>AssemblyAI Audio Transcriber</h2>
+      <h1>Audio Transcription App</h1>
       <input type="file" accept="audio/*" onChange={handleFileChange} />
-      <button
-        onClick={transcribeAndDownload}
-        disabled={!selectedFile || isLoading}
-      >
-        {isLoading ? "Transcribing..." : "Transcribe and Download"}
-      </button>
-      {transcription && (
-        <div>
-          <h3>Transcription Output</h3>
-          <pre>{transcription}</pre>
-        </div>
+      {isLoading ? <p>Transcribing...</p> : <p>{transcript}</p>}
+
+      {transcript && (
+        <button onClick={downloadTranscript}>Download Transcript</button>
       )}
     </div>
   );
