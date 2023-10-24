@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import axios from "axios";
 
 const App = () => {
-  // AssemblyAI API
   const assembly = axios.create({
     baseURL: "https://api.assemblyai.com/v2",
     headers: {
@@ -12,16 +11,20 @@ const App = () => {
     },
   });
 
-  // State variables
   const [transcript, setTranscript] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-  // Handle file selection
   const handleFileChange = async (event) => {
+    // Reset messages
+    setMessage("Uploading file...");
+    setError("");
+
     const selectedFile = event.target.files[0];
 
     if (!selectedFile) {
-      alert("Please select an audio file.");
+      setError("Please select an audio file.");
       return;
     }
 
@@ -34,13 +37,13 @@ const App = () => {
       if (uploadResponse.status === 200) {
         const uploadURL = uploadResponse.data.upload_url;
 
+        setMessage("Transcribing...");
         submitTranscription(uploadURL);
       } else {
-        alert("File upload to AssemblyAI failed.");
+        setError("File upload to AssemblyAI failed.");
       }
     } catch (error) {
-      console.error(error);
-      alert("An error occurred while uploading the file.");
+      setError("An error occurred while uploading the file.");
     }
   };
 
@@ -51,11 +54,11 @@ const App = () => {
       .then((response) => {
         const transcriptID = response.data.id;
 
+        setMessage("Processing...");
         checkTranscriptionStatus(transcriptID);
       })
       .catch((error) => {
-        console.error(error);
-        alert("Transcription request to AssemblyAI failed.");
+        setError("Transcription request to AssemblyAI failed.");
       });
   };
 
@@ -64,19 +67,19 @@ const App = () => {
       try {
         const response = await assembly.get(`/transcript/${transcriptID}`);
         const transcriptData = response.data;
-        console.log(response);
 
         if (transcriptData.status === "completed") {
           clearInterval(interval);
           setIsLoading(false);
+          setMessage("Transcription completed!");
           setTranscript(transcriptData.text);
         }
       } catch (error) {
-        console.error(error);
-        alert("An error occurred while checking transcription status.");
+        setError("An error occurred while checking transcription status.");
       }
     }, 1000);
   };
+
   const downloadTranscript = () => {
     const element = document.createElement("a");
     const file = new Blob([transcript], { type: "text/plain" });
@@ -84,12 +87,13 @@ const App = () => {
     element.download = "transcript.txt";
     element.click();
   };
+
   return (
     <div>
       <h1>Audio Transcription App</h1>
       <input type="file" accept="audio/*" onChange={handleFileChange} />
-      {isLoading ? <p>Transcribing...</p> : <p>{transcript}</p>}
-
+      {isLoading ? <p>{message}</p> : <p>{transcript}</p>}
+      {error && <p className="error">{error}</p>}
       {transcript && (
         <button onClick={downloadTranscript}>Download Transcript</button>
       )}
